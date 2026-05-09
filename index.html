@@ -24,10 +24,10 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 26px;
+            gap: 22px;
             width: 100%;
-            max-width: 760px;
-            padding: 36px;
+            max-width: 560px;
+            padding: 30px;
         }
 
         #title {
@@ -45,7 +45,7 @@
         }
 
         #level-display {
-            font-size: 56px;
+            font-size: 42px;
             font-weight: bold;
             color: #ffe500;
             letter-spacing: 2px;
@@ -59,29 +59,29 @@
             color: #333;
         }
 
-        /* Stacked bars: 3 visible slots + 1 hidden incoming above. Slot height 56 + gap 12 = 68. */
+        /* Stacked bars: 3 visible slots + 1 hidden incoming above. Slot height 42 + gap 10 = 52. */
         #stack {
             position: relative;
             width: 100%;
-            height: 196px;
+            height: 146px;
         }
 
         .bar {
             position: absolute;
             left: 0;
             right: 0;
-            height: 56px;
+            height: 42px;
             background: #181818;
             border-radius: 4px;
             overflow: hidden;
             transition: top 0.45s cubic-bezier(.6,0,.2,1), opacity 0.45s ease;
         }
 
-        .bar.role-incoming { top: -68px; opacity: 0; }
+        .bar.role-incoming { top: -52px; opacity: 0; }
         .bar.role-next     { top: 0;     opacity: 0.28; }
-        .bar.role-active   { top: 68px;  opacity: 1; }
-        .bar.role-prev     { top: 136px; opacity: 0.28; }
-        .bar.role-exiting  { top: 204px; opacity: 0; }
+        .bar.role-active   { top: 52px;  opacity: 1; }
+        .bar.role-prev     { top: 104px; opacity: 0.28; }
+        .bar.role-exiting  { top: 156px; opacity: 0; }
 
         .bar .spot {
             position: absolute;
@@ -431,7 +431,7 @@
     }
 
     // ===== Game tuning =====
-    function speed()        { return 28 + (level - 1) * 4; }
+    function speed()        { return 26 + (level - 1) * 2.5; }
     function zoneWidth(lvl) { return Math.max(5, 22 - (lvl - 1) * 0.9); }
     function genSpot(lvl) {
         const w = zoneWidth(lvl);
