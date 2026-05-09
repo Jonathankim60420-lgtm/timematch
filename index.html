@@ -431,8 +431,8 @@
     }
 
     // ===== Game tuning =====
-    function speed()        { return 26 + (level - 1) * 2.5; }
-    function zoneWidth(lvl) { return Math.max(5, 22 - (lvl - 1) * 0.9); }
+    function speed()        { return 26 + (level - 1) * 1.8; }
+    function zoneWidth(lvl) { return Math.max(5, 22 - (lvl - 1) * 0.6); }
     function genSpot(lvl) {
         const w = zoneWidth(lvl);
         return { left: 3 + Math.random() * (94 - w), width: w };
