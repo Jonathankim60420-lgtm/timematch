@@ -15,7 +15,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             overflow: hidden;
             user-select: none;
         }
@@ -24,10 +24,10 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 30px;
+            gap: 26px;
             width: 100%;
             max-width: 760px;
-            padding: 40px;
+            padding: 36px;
         }
 
         #title {
@@ -92,6 +92,15 @@
             top: 0;
         }
 
+        .bar .slit {
+            position: absolute;
+            height: 100%;
+            top: 0;
+            background: rgba(255, 229, 0, 0.22);
+            border-left: 1px solid rgba(255, 229, 0, 0.95);
+            border-right: 1px solid rgba(255, 229, 0, 0.95);
+        }
+
         .bar .slider {
             position: absolute;
             width: 3px;
@@ -102,15 +111,22 @@
             transform: translateX(-50%);
         }
 
+        .bar .slider.perfect {
+            background: #fff;
+            box-shadow: 0 0 12px #fff, 0 0 24px #ffe500;
+        }
+
         #message {
             font-size: 12px;
             letter-spacing: 5px;
             text-transform: uppercase;
             height: 18px;
             color: transparent;
+            transition: color 0.15s;
         }
 
         #message.success { color: #ffe500; }
+        #message.perfect { color: #fff; text-shadow: 0 0 8px #ffe500; }
         #message.fail    { color: #ff4040; }
 
         #instruction {
@@ -122,14 +138,17 @@
 
         #instruction span { color: #666; }
 
-        #best-display {
+        #score-line {
             font-size: 11px;
             letter-spacing: 3px;
-            color: #2a2a2a;
+            color: #444;
             text-transform: uppercase;
+            display: flex;
+            gap: 24px;
         }
 
-        #best-display span { color: #444; }
+        #score-line .label { color: #2a2a2a; }
+        #score-line .val   { color: #888; }
 
         #restart-btn {
             display: none;
@@ -146,6 +165,123 @@
         }
 
         #restart-btn:hover { background: rgba(255, 229, 0, 0.08); }
+
+        /* ===== Tower view (game over) ===== */
+        #tower-view {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            gap: 22px;
+        }
+
+        #tower-view.show { display: flex; }
+
+        #tower {
+            width: 100%;
+            display: flex;
+            flex-direction: column-reverse; /* Oldest at bottom, newest at top */
+            gap: 3px;
+            animation: zoomIn 0.7s cubic-bezier(.3,0,.2,1);
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0.35); opacity: 0; }
+            to   { transform: scale(1);    opacity: 1; }
+        }
+
+        .tower-bar {
+            position: relative;
+            width: 100%;
+            background: #181818;
+            border-radius: 2px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .tower-bar.failed { background: #1d0d0d; }
+
+        .tower-spot {
+            position: absolute;
+            height: 100%;
+            top: 0;
+            background: rgba(255, 229, 0, 0.06);
+            border-left: 1px solid rgba(255, 229, 0, 0.4);
+            border-right: 1px solid rgba(255, 229, 0, 0.4);
+        }
+
+        .tower-bar.failed .tower-spot {
+            border-color: rgba(255, 64, 64, 0.4);
+            background: rgba(255, 64, 64, 0.06);
+        }
+
+        .tower-slit {
+            position: absolute;
+            height: 100%;
+            top: 0;
+            background: rgba(255, 229, 0, 0.18);
+        }
+
+        .tower-slider {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            top: 0;
+            transform: translateX(-50%);
+            background: #ffe500;
+        }
+
+        .tower-bar.failed .tower-slider { background: #ff4040; }
+        .tower-bar.perfect .tower-slider {
+            background: #fff;
+            box-shadow: 0 0 4px #ffe500;
+        }
+
+        #game-over-stats {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            animation: fadeIn 0.5s ease 0.4s both;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        #final-score {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ffe500;
+            letter-spacing: 2px;
+            line-height: 1;
+        }
+
+        #final-score-label {
+            font-size: 10px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: #333;
+        }
+
+        #final-level-line {
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: #555;
+            text-transform: uppercase;
+            margin-top: 6px;
+        }
+
+        #new-best-tag {
+            font-size: 10px;
+            letter-spacing: 5px;
+            color: #ffe500;
+            text-transform: uppercase;
+            margin-top: 4px;
+            display: none;
+            text-shadow: 0 0 8px rgba(255, 229, 0, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -154,23 +290,37 @@
 
     <div id="level-wrap">
         <div id="level-display">1</div>
-        <div id="level-label">Level</div>
+        <div id="level-label" id="level-label-text">Level</div>
     </div>
 
     <div id="stack"></div>
+
+    <div id="tower-view">
+        <div id="tower"></div>
+        <div id="game-over-stats">
+            <div id="final-score">0</div>
+            <div id="final-score-label">Final Score</div>
+            <div id="final-level-line">Reached Level <span id="final-level">1</span></div>
+            <div id="new-best-tag">★ New Best ★</div>
+        </div>
+    </div>
 
     <div id="message"></div>
 
     <div id="instruction">Press <span>spacebar</span> to stop</div>
 
-    <div id="best-display">Best: <span id="best-level">—</span></div>
+    <div id="score-line">
+        <span><span class="label">Score</span> <span class="val" id="score-num">0</span></span>
+        <span><span class="label">Best</span> <span class="val" id="best-num">—</span></span>
+    </div>
 
     <button id="restart-btn" onclick="restartGame()">Play Again</button>
 </div>
 
 <script>
     let level = 1;
-    let bestLevel = 0;
+    let score = 0;
+    let bestScore = 0;
     let sliderPos = 0;
     let direction = 1;
     let animFrame = null;
@@ -182,6 +332,12 @@
     // Bars by role
     let bars = { incoming: null, next: null, active: null, prev: null };
     let activeSliderEl = null;
+
+    // History of fully-completed bars (cycled out of view), oldest first
+    let completedBars = [];
+
+    // Perfect zone is the central 30% of the sweet spot
+    const PERFECT_RATIO = 0.30;
 
     // ===== Sound =====
     let audioCtx = null;
@@ -195,7 +351,6 @@
         const t = c.currentTime;
         const base = 880 + (level - 1) * 25;
 
-        // Layer 1: main tone, sharp attack, smooth tail
         const o1 = c.createOscillator();
         const g1 = c.createGain();
         o1.type = 'sine';
@@ -208,7 +363,6 @@
         o1.start(t);
         o1.stop(t + 0.25);
 
-        // Layer 2: octave shimmer for presence
         const o2 = c.createOscillator();
         const g2 = c.createGain();
         o2.type = 'sine';
@@ -220,6 +374,43 @@
         g2.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
         o2.start(t);
         o2.stop(t + 0.16);
+    }
+
+    function playPerfect() {
+        const c = ctx();
+        const t = c.currentTime;
+        const lvlBoost = (level - 1) * 30;
+
+        // Quick rising arpeggio — coin-pickup feel
+        const notes = [
+            { freq: 880  + lvlBoost, off: 0.00, dur: 0.10 },
+            { freq: 1320 + lvlBoost, off: 0.05, dur: 0.10 },
+            { freq: 1760 + lvlBoost, off: 0.10, dur: 0.22 },
+        ];
+        notes.forEach(n => {
+            const o = c.createOscillator();
+            const g = c.createGain();
+            o.type = 'sine';
+            o.frequency.value = n.freq;
+            o.connect(g).connect(c.destination);
+            g.gain.setValueAtTime(0, t + n.off);
+            g.gain.linearRampToValueAtTime(0.16, t + n.off + 0.003);
+            g.gain.exponentialRampToValueAtTime(0.001, t + n.off + n.dur);
+            o.start(t + n.off);
+            o.stop(t + n.off + n.dur + 0.05);
+        });
+
+        // Sparkle on top
+        const o3 = c.createOscillator();
+        const g3 = c.createGain();
+        o3.type = 'sine';
+        o3.frequency.value = 3520 + lvlBoost;
+        o3.connect(g3).connect(c.destination);
+        g3.gain.setValueAtTime(0, t);
+        g3.gain.linearRampToValueAtTime(0.05, t + 0.002);
+        g3.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        o3.start(t);
+        o3.stop(t + 0.2);
     }
 
     function playFail() {
@@ -238,8 +429,8 @@
     }
 
     // ===== Game tuning =====
-    function speed()           { return 28 + (level - 1) * 7; }
-    function zoneWidth(lvl)    { return Math.max(5, 22 - (lvl - 1) * 0.9); }
+    function speed()        { return 28 + (level - 1) * 7; }
+    function zoneWidth(lvl) { return Math.max(5, 22 - (lvl - 1) * 0.9); }
     function genSpot(lvl) {
         const w = zoneWidth(lvl);
         return { left: 3 + Math.random() * (94 - w), width: w };
@@ -250,7 +441,13 @@
             level: lvl,
             spot: genSpot(lvl),
             sliderEnd: null,
+            perfect: false,
+            failed: false,
         };
+    }
+    function slitOf(spot) {
+        const w = Math.max(1.4, spot.width * PERFECT_RATIO);
+        return { left: spot.left + (spot.width - w) / 2, width: w };
     }
 
     // ===== DOM =====
@@ -265,9 +462,16 @@
         spot.style.width = bar.spot.width + '%';
         el.appendChild(spot);
 
+        const slit = slitOf(bar.spot);
+        const slitEl = document.createElement('div');
+        slitEl.className = 'slit';
+        slitEl.style.left = slit.left + '%';
+        slitEl.style.width = slit.width + '%';
+        el.appendChild(slitEl);
+
         if (role === 'active' || (role === 'prev' && bar.sliderEnd !== null)) {
             const slider = document.createElement('div');
-            slider.className = 'slider';
+            slider.className = 'slider' + (bar.perfect ? ' perfect' : '');
             slider.style.left = (role === 'prev' ? bar.sliderEnd : 0) + '%';
             el.appendChild(slider);
         }
@@ -325,21 +529,41 @@
     }
 
     // ===== Game logic =====
+    function updateScoreDisplay() {
+        document.getElementById('score-num').textContent = score;
+        document.getElementById('best-num').textContent = bestScore || '—';
+    }
+
     function onTap() {
         if (paused || gameOver) return;
         stopAnim();
 
         const spot = bars.active.spot;
-        const hit  = sliderPos >= spot.left && sliderPos <= spot.left + spot.width;
-        const msg  = document.getElementById('message');
+        const slit = slitOf(spot);
+        const inSpot   = sliderPos >= spot.left && sliderPos <= spot.left + spot.width;
+        const inSlit   = sliderPos >= slit.left && sliderPos <= slit.left + slit.width;
+        const msg      = document.getElementById('message');
 
-        if (hit) {
-            playSuccess();
-            msg.textContent = 'Nice';
-            msg.className = 'success';
+        if (inSpot) {
+            const isPerfect = inSlit;
+            if (isPerfect) {
+                playPerfect();
+                msg.textContent = 'Perfect +2';
+                msg.className = 'perfect';
+                score += 2;
+            } else {
+                playSuccess();
+                msg.textContent = 'Nice +1';
+                msg.className = 'success';
+                score += 1;
+            }
 
             // Freeze slider on the bar that's about to become 'prev'
             bars.active.sliderEnd = sliderPos;
+            bars.active.perfect = isPerfect;
+
+            // Highlight active slider color if perfect
+            if (isPerfect && activeSliderEl) activeSliderEl.classList.add('perfect');
 
             // Rotate roles down: incoming → next → active → prev → exiting
             const oldPrev = bars.prev;
@@ -347,7 +571,9 @@
             const oldNext = bars.next;
             const oldIncoming = bars.incoming;
 
+            // Old prev exits the visible stack and is archived
             if (oldPrev) {
+                completedBars.push(oldPrev);
                 const el = document.getElementById(oldPrev.id);
                 if (el) {
                     el.className = 'bar role-exiting';
@@ -367,13 +593,9 @@
             bars.incoming = newIncoming;
 
             level++;
-            if (level > bestLevel) {
-                bestLevel = level;
-                document.getElementById('best-level').textContent = bestLevel;
-            }
             document.getElementById('level-display').textContent = level;
+            updateScoreDisplay();
 
-            // Update active slider reference
             const newActiveEl = document.getElementById(bars.active.id);
             activeSliderEl = newActiveEl ? newActiveEl.querySelector('.slider') : null;
 
@@ -391,42 +613,126 @@
         } else {
             playFail();
             gameOver = true;
-            if (level > bestLevel) {
-                bestLevel = level;
-                document.getElementById('best-level').textContent = bestLevel;
-            }
+            bars.active.sliderEnd = sliderPos;
+            bars.active.failed = true;
+
             msg.textContent = 'Missed — Level ' + level;
             msg.className = 'fail';
             document.getElementById('instruction').style.display = 'none';
-            setTimeout(() => {
-                document.getElementById('restart-btn').style.display = 'inline-block';
-            }, 500);
+
+            // After a short beat, transition to the tower view
+            setTimeout(showTower, 800);
         }
+    }
+
+    // ===== Tower (game-over) view =====
+    function buildTowerBar(bar, totalCount) {
+        const el = document.createElement('div');
+        el.className = 'tower-bar';
+        if (bar.failed) el.classList.add('failed');
+        if (bar.perfect) el.classList.add('perfect');
+
+        // Dynamic height: shrink to fit when there are many bars
+        const maxStackHeight = Math.min(window.innerHeight * 0.5, 380);
+        const gap = 3;
+        const h = Math.max(5, Math.min(20, (maxStackHeight - gap * (totalCount - 1)) / totalCount));
+        el.style.height = h + 'px';
+
+        const spotEl = document.createElement('div');
+        spotEl.className = 'tower-spot';
+        spotEl.style.left = bar.spot.left + '%';
+        spotEl.style.width = bar.spot.width + '%';
+        el.appendChild(spotEl);
+
+        if (!bar.failed) {
+            const slit = slitOf(bar.spot);
+            const slitEl = document.createElement('div');
+            slitEl.className = 'tower-slit';
+            slitEl.style.left = slit.left + '%';
+            slitEl.style.width = slit.width + '%';
+            el.appendChild(slitEl);
+        }
+
+        if (bar.sliderEnd !== null) {
+            const sl = document.createElement('div');
+            sl.className = 'tower-slider';
+            sl.style.left = bar.sliderEnd + '%';
+            el.appendChild(sl);
+        }
+
+        return el;
+    }
+
+    function showTower() {
+        // All the bars to display: completed + bars.prev (last success) + bars.active (failed)
+        const all = [...completedBars];
+        if (bars.prev)   all.push(bars.prev);
+        if (bars.active) all.push(bars.active);
+
+        const tower = document.getElementById('tower');
+        tower.innerHTML = '';
+        // column-reverse stacks them bottom-up: oldest first → bottom
+        all.forEach(b => tower.appendChild(buildTowerBar(b, all.length)));
+
+        document.getElementById('final-score').textContent = score;
+        document.getElementById('final-level').textContent = level;
+
+        const isNewBest = score > bestScore;
+        if (isNewBest) bestScore = score;
+        document.getElementById('new-best-tag').style.display = isNewBest ? 'block' : 'none';
+        updateScoreDisplay();
+
+        // Swap views
+        document.getElementById('stack').style.display = 'none';
+        document.getElementById('tower-view').classList.add('show');
+        document.getElementById('message').style.display = 'none';
+        document.getElementById('level-wrap').style.display = 'none';
+        document.getElementById('score-line').style.display = 'none';
+
+        document.getElementById('restart-btn').style.display = 'inline-block';
     }
 
     function restartGame() {
         level = 1;
+        score = 0;
         gameOver = false;
         paused = false;
         sliderPos = 0;
         direction = 1;
         lastTime = null;
+        completedBars = [];
+
         document.getElementById('level-display').textContent = level;
         document.getElementById('message').className = '';
         document.getElementById('message').textContent = '';
+        document.getElementById('message').style.display = '';
         document.getElementById('restart-btn').style.display = 'none';
         document.getElementById('instruction').style.display = '';
+        document.getElementById('level-wrap').style.display = '';
+        document.getElementById('score-line').style.display = '';
+
+        // Hide tower, show stack
+        document.getElementById('tower-view').classList.remove('show');
+        document.getElementById('stack').style.display = '';
+        document.getElementById('tower').innerHTML = '';
+
+        updateScoreDisplay();
         setupInitialBars();
         startAnim();
     }
 
+    // ===== Input =====
     document.addEventListener('keydown', e => {
         if (e.code === 'Space') { e.preventDefault(); onTap(); }
     });
     document.addEventListener('touchstart', e => {
-        e.preventDefault(); onTap();
+        if (e.target.closest('button')) return; // don't block the Play Again button
+        e.preventDefault();
+        onTap();
     }, { passive: false });
 
+    // ===== Init =====
+    updateScoreDisplay();
     setupInitialBars();
     startAnim();
 </script>
