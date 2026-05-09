@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TimeMatch</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             background: #0d0d0d;
@@ -28,7 +24,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 36px;
+            gap: 30px;
             width: 100%;
             max-width: 760px;
             padding: 40px;
@@ -63,16 +59,31 @@
             color: #333;
         }
 
-        #bar-container {
+        /* Stacked bars: 3 visible slots + 1 hidden incoming above. Slot height 56 + gap 12 = 68. */
+        #stack {
             position: relative;
             width: 100%;
+            height: 196px;
+        }
+
+        .bar {
+            position: absolute;
+            left: 0;
+            right: 0;
             height: 56px;
             background: #181818;
             border-radius: 4px;
             overflow: hidden;
+            transition: top 0.45s cubic-bezier(.6,0,.2,1), opacity 0.45s ease;
         }
 
-        #sweet-spot {
+        .bar.role-incoming { top: -68px; opacity: 0; }
+        .bar.role-next     { top: 0;     opacity: 0.28; }
+        .bar.role-active   { top: 68px;  opacity: 1; }
+        .bar.role-prev     { top: 136px; opacity: 0.28; }
+        .bar.role-exiting  { top: 204px; opacity: 0; }
+
+        .bar .spot {
             position: absolute;
             height: 100%;
             background: rgba(255, 229, 0, 0.08);
@@ -81,7 +92,7 @@
             top: 0;
         }
 
-        #slider {
+        .bar .slider {
             position: absolute;
             width: 3px;
             height: 100%;
@@ -109,9 +120,7 @@
             color: #333;
         }
 
-        #instruction span {
-            color: #666;
-        }
+        #instruction span { color: #666; }
 
         #best-display {
             font-size: 11px;
@@ -136,9 +145,7 @@
             transition: background 0.2s;
         }
 
-        #restart-btn:hover {
-            background: rgba(255, 229, 0, 0.08);
-        }
+        #restart-btn:hover { background: rgba(255, 229, 0, 0.08); }
     </style>
 </head>
 <body>
@@ -150,10 +157,7 @@
         <div id="level-label">Level</div>
     </div>
 
-    <div id="bar-container">
-        <div id="sweet-spot"></div>
-        <div id="slider"></div>
-    </div>
+    <div id="stack"></div>
 
     <div id="message"></div>
 
@@ -167,16 +171,19 @@
 <script>
     let level = 1;
     let bestLevel = 0;
-    let sliderPos = 0;       // 0–100
-    let direction = 1;       // 1 = right, -1 = left
+    let sliderPos = 0;
+    let direction = 1;
     let animFrame = null;
     let lastTime = null;
     let gameOver = false;
-    let paused = false;      // brief pause between levels
+    let paused = false;
+    let barIdCounter = 0;
 
-    let sweetSpotLeft = 0;
-    let sweetSpotWidth = 0;
+    // Bars by role
+    let bars = { incoming: null, next: null, active: null, prev: null };
+    let activeSliderEl = null;
 
+    // ===== Sound =====
     let audioCtx = null;
     function ctx() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -185,75 +192,126 @@
 
     function playSuccess() {
         const c = ctx();
-        const osc = c.createOscillator();
-        const gain = c.createGain();
-        osc.connect(gain);
-        gain.connect(c.destination);
-        const base = 900 + (level - 1) * 25;
-        osc.frequency.setValueAtTime(base, c.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(base + 400, c.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.12, c.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.18);
-        osc.start(c.currentTime);
-        osc.stop(c.currentTime + 0.18);
+        const t = c.currentTime;
+        const base = 880 + (level - 1) * 25;
+
+        // Layer 1: main tone, sharp attack, smooth tail
+        const o1 = c.createOscillator();
+        const g1 = c.createGain();
+        o1.type = 'sine';
+        o1.frequency.setValueAtTime(base, t);
+        o1.frequency.exponentialRampToValueAtTime(base * 1.4, t + 0.07);
+        o1.connect(g1).connect(c.destination);
+        g1.gain.setValueAtTime(0, t);
+        g1.gain.linearRampToValueAtTime(0.18, t + 0.004);
+        g1.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o1.start(t);
+        o1.stop(t + 0.25);
+
+        // Layer 2: octave shimmer for presence
+        const o2 = c.createOscillator();
+        const g2 = c.createGain();
+        o2.type = 'sine';
+        o2.frequency.setValueAtTime(base * 2, t);
+        o2.frequency.exponentialRampToValueAtTime(base * 2.8, t + 0.06);
+        o2.connect(g2).connect(c.destination);
+        g2.gain.setValueAtTime(0, t);
+        g2.gain.linearRampToValueAtTime(0.07, t + 0.003);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+        o2.start(t);
+        o2.stop(t + 0.16);
     }
 
     function playFail() {
         const c = ctx();
-        const osc = c.createOscillator();
-        const gain = c.createGain();
-        osc.connect(gain);
-        gain.connect(c.destination);
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220, c.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(70, c.currentTime + 0.35);
-        gain.gain.setValueAtTime(0.18, c.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.35);
-        osc.start(c.currentTime);
-        osc.stop(c.currentTime + 0.35);
+        const t = c.currentTime;
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(220, t);
+        o.frequency.exponentialRampToValueAtTime(70, t + 0.35);
+        g.gain.setValueAtTime(0.18, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        o.connect(g).connect(c.destination);
+        o.start(t);
+        o.stop(t + 0.35);
     }
 
-    // Speed in % of bar per second — ramps up with level
-    function speed() { return 28 + (level - 1) * 7; }
-
-    // Sweet spot width in % — shrinks with level, floor at 5%
-    function zoneWidth() { return Math.max(5, 22 - (level - 1) * 0.9); }
-
-    // Random sweet spot position, guaranteed fully inside bar
-    function randomZoneLeft(w) {
-        return 3 + Math.random() * (94 - w);
+    // ===== Game tuning =====
+    function speed()           { return 28 + (level - 1) * 7; }
+    function zoneWidth(lvl)    { return Math.max(5, 22 - (lvl - 1) * 0.9); }
+    function genSpot(lvl) {
+        const w = zoneWidth(lvl);
+        return { left: 3 + Math.random() * (94 - w), width: w };
+    }
+    function makeBar(lvl) {
+        return {
+            id: 'bar-' + (++barIdCounter),
+            level: lvl,
+            spot: genSpot(lvl),
+            sliderEnd: null,
+        };
     }
 
-    function setupLevel() {
-        sweetSpotWidth = zoneWidth();
-        sweetSpotLeft  = randomZoneLeft(sweetSpotWidth);
+    // ===== DOM =====
+    function createBarEl(bar, role) {
+        const el = document.createElement('div');
+        el.id = bar.id;
+        el.className = 'bar role-' + role;
 
-        document.getElementById('sweet-spot').style.left  = sweetSpotLeft + '%';
-        document.getElementById('sweet-spot').style.width = sweetSpotWidth + '%';
-        document.getElementById('level-display').textContent = level;
-        document.getElementById('message').className = '';
-        document.getElementById('message').textContent = '';
-        document.getElementById('restart-btn').style.display = 'none';
-        document.getElementById('instruction').style.display = '';
+        const spot = document.createElement('div');
+        spot.className = 'spot';
+        spot.style.left = bar.spot.left + '%';
+        spot.style.width = bar.spot.width + '%';
+        el.appendChild(spot);
 
-        sliderPos = 0;
-        direction = 1;
-        lastTime  = null;
-        gameOver  = false;
-        paused    = false;
+        if (role === 'active' || (role === 'prev' && bar.sliderEnd !== null)) {
+            const slider = document.createElement('div');
+            slider.className = 'slider';
+            slider.style.left = (role === 'prev' ? bar.sliderEnd : 0) + '%';
+            el.appendChild(slider);
+        }
+
+        document.getElementById('stack').appendChild(el);
+        return el;
     }
 
+    function setBarRole(bar, role) {
+        const el = document.getElementById(bar.id);
+        if (!el) return;
+        el.className = 'bar role-' + role;
+        if (role === 'active' && !el.querySelector('.slider')) {
+            const slider = document.createElement('div');
+            slider.className = 'slider';
+            slider.style.left = '0%';
+            el.appendChild(slider);
+        }
+    }
+
+    function setupInitialBars() {
+        document.getElementById('stack').innerHTML = '';
+        bars.incoming = makeBar(3);
+        bars.next     = makeBar(2);
+        bars.active   = makeBar(1);
+        bars.prev     = null;
+
+        createBarEl(bars.incoming, 'incoming');
+        createBarEl(bars.next,     'next');
+        const activeEl = createBarEl(bars.active, 'active');
+        activeSliderEl = activeEl.querySelector('.slider');
+    }
+
+    // ===== Animation =====
     function animate(ts) {
         if (lastTime === null) lastTime = ts;
         const dt = (ts - lastTime) / 1000;
         lastTime = ts;
 
         sliderPos += direction * speed() * dt;
-
         if (sliderPos >= 100) { sliderPos = 100; direction = -1; }
         else if (sliderPos <= 0) { sliderPos = 0; direction = 1; }
 
-        document.getElementById('slider').style.left = sliderPos + '%';
+        if (activeSliderEl) activeSliderEl.style.left = sliderPos + '%';
         animFrame = requestAnimationFrame(animate);
     }
 
@@ -266,25 +324,70 @@
         animFrame = requestAnimationFrame(animate);
     }
 
+    // ===== Game logic =====
     function onTap() {
         if (paused || gameOver) return;
-
         stopAnim();
 
-        const hit = sliderPos >= sweetSpotLeft && sliderPos <= sweetSpotLeft + sweetSpotWidth;
-        const msg = document.getElementById('message');
+        const spot = bars.active.spot;
+        const hit  = sliderPos >= spot.left && sliderPos <= spot.left + spot.width;
+        const msg  = document.getElementById('message');
 
         if (hit) {
             playSuccess();
             msg.textContent = 'Nice';
             msg.className = 'success';
+
+            // Freeze slider on the bar that's about to become 'prev'
+            bars.active.sliderEnd = sliderPos;
+
+            // Rotate roles down: incoming → next → active → prev → exiting
+            const oldPrev = bars.prev;
+            const oldActive = bars.active;
+            const oldNext = bars.next;
+            const oldIncoming = bars.incoming;
+
+            if (oldPrev) {
+                const el = document.getElementById(oldPrev.id);
+                if (el) {
+                    el.className = 'bar role-exiting';
+                    setTimeout(() => el.remove(), 600);
+                }
+            }
+            if (oldActive)   setBarRole(oldActive,   'prev');
+            if (oldNext)     setBarRole(oldNext,     'active');
+            if (oldIncoming) setBarRole(oldIncoming, 'next');
+
+            const newIncoming = makeBar((oldIncoming?.level || 1) + 1);
+            createBarEl(newIncoming, 'incoming');
+
+            bars.prev     = oldActive;
+            bars.active   = oldNext;
+            bars.next     = oldIncoming;
+            bars.incoming = newIncoming;
+
+            level++;
             if (level > bestLevel) {
                 bestLevel = level;
                 document.getElementById('best-level').textContent = bestLevel;
             }
+            document.getElementById('level-display').textContent = level;
+
+            // Update active slider reference
+            const newActiveEl = document.getElementById(bars.active.id);
+            activeSliderEl = newActiveEl ? newActiveEl.querySelector('.slider') : null;
+
             paused = true;
-            level++;
-            setTimeout(() => { setupLevel(); startAnim(); }, 650);
+            setTimeout(() => {
+                msg.className = '';
+                msg.textContent = '';
+                sliderPos = 0;
+                direction = 1;
+                lastTime = null;
+                paused = false;
+                if (activeSliderEl) activeSliderEl.style.left = '0%';
+                startAnim();
+            }, 500);
         } else {
             playFail();
             gameOver = true;
@@ -303,19 +406,28 @@
 
     function restartGame() {
         level = 1;
-        setupLevel();
+        gameOver = false;
+        paused = false;
+        sliderPos = 0;
+        direction = 1;
+        lastTime = null;
+        document.getElementById('level-display').textContent = level;
+        document.getElementById('message').className = '';
+        document.getElementById('message').textContent = '';
+        document.getElementById('restart-btn').style.display = 'none';
+        document.getElementById('instruction').style.display = '';
+        setupInitialBars();
         startAnim();
     }
 
     document.addEventListener('keydown', e => {
         if (e.code === 'Space') { e.preventDefault(); onTap(); }
     });
-
     document.addEventListener('touchstart', e => {
         e.preventDefault(); onTap();
     }, { passive: false });
 
-    setupLevel();
+    setupInitialBars();
     startAnim();
 </script>
 </body>
